@@ -1,19 +1,25 @@
-import {Dialog, ICommandPalette, showDialog} from "@jupyterlab/apputils";
+import { Dialog, ICommandPalette, showDialog } from "@jupyterlab/apputils";
 
-import {PageConfig} from "@jupyterlab/coreutils";
+import { PageConfig } from "@jupyterlab/coreutils";
 
-import {IDocumentManager} from "@jupyterlab/docmanager";
+import { IDocumentManager } from "@jupyterlab/docmanager";
 
-import {IFileBrowserFactory} from "@jupyterlab/filebrowser";
+import { IFileBrowserFactory } from "@jupyterlab/filebrowser";
 
-import {ILauncher} from "@jupyterlab/launcher";
+import { ILauncher } from "@jupyterlab/launcher";
 
-import {request} from "requests-helper";
+import { request } from "requests-helper";
 
 import "../style/index.css";
 
 async function activate(app, docManager, palette, browser) {
   // grab templates from serverextension
+  let xsrf_token;
+  try {
+    xsrf_token = document.cookie.match("\\b_xsrf=([^;]*)\\b")[1];
+  } catch (e) {
+    console.error("Could not extract _xsrf token from cookies.");
+  }
   const res = await request("get", `${PageConfig.getBaseUrl()}commands/get`);
   if (res.ok) {
     const commands = res.json();
@@ -21,7 +27,7 @@ async function activate(app, docManager, palette, browser) {
       app.commands.addCommand(command, {
         execute: async () => {
           const result = await showDialog({
-            buttons: [Dialog.cancelButton(), Dialog.okButton({label: "Ok"})],
+            buttons: [Dialog.cancelButton(), Dialog.okButton({ label: "Ok" })],
             title: `Execute ${command}?`,
           });
           if (result.button.label === "Cancel") {
@@ -44,8 +50,17 @@ async function activate(app, docManager, palette, browser) {
             model = context.model.toJSON();
           }
 
+          const headers = xsrf_token ? { "X-XSRFToken": xsrf_token } : {};
+
           // eslint-disable-next-line no-shadow
-          const res = await request("post", `${PageConfig.getBaseUrl()}commands/run?command=${encodeURI(command)}`, {}, JSON.stringify({folder, path, model}));
+          const res = await request(
+            "post",
+            `${PageConfig.getBaseUrl()}commands/run?command=${encodeURI(
+              command
+            )}`,
+            headers,
+            JSON.stringify({ folder, path, model })
+          );
           if (res.ok) {
             const resp = res.json();
             let body = "";
@@ -54,12 +69,12 @@ async function activate(app, docManager, palette, browser) {
             }
             await showDialog({
               body,
-              buttons: [Dialog.okButton({label: "Ok"})],
+              buttons: [Dialog.okButton({ label: "Ok" })],
               title: `Execute ${command} succeeded`,
             });
           } else {
             await showDialog({
-              buttons: [Dialog.okButton({label: "Ok"})],
+              buttons: [Dialog.okButton({ label: "Ok" })],
               title: `Execute ${command} failed`,
             });
           }
@@ -68,7 +83,7 @@ async function activate(app, docManager, palette, browser) {
         label: command,
       });
 
-      palette.addItem({command, category: "Custom Commands"});
+      palette.addItem({ command, category: "Custom Commands" });
 
       return command;
     });
@@ -87,4 +102,4 @@ const extension = {
 };
 
 export default extension;
-export {activate as _activate};
+export { activate as _activate };
